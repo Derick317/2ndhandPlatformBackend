@@ -1,7 +1,12 @@
 package main
 
-import "fmt"
+import (
+    "fmt"
+
+    "secondHand/backend"
+)
 
 func main() {
-    fmt.Println("Hello, World!")
+    fmt.Println("started-service")
+    backend.InitPostgreSQLBackend()
 }
