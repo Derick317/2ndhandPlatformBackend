@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-
-	"secondHand/util"
+	"secondHand/constants"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/option"
 )
 
 var (
-	GCSBackend *GoogleCloudStorageBackend
+	gcsBackend *GoogleCloudStorageBackend
 )
 
 type GoogleCloudStorageBackend struct {
@@ -19,15 +19,16 @@ type GoogleCloudStorageBackend struct {
 	bucket string
 }
 
-func InitGCSBackend(config *util.GCSInfo) {
-	client, err := storage.NewClient(context.Background())
+func InitGCSBackend() {
+	client, err := storage.NewClient(context.Background(),
+		option.WithCredentialsFile(constants.GCS_CREDENTIALS_FILE_PATH))
 	if err != nil {
 		panic(err)
 	}
 
-	GCSBackend = &GoogleCloudStorageBackend{
+	gcsBackend = &GoogleCloudStorageBackend{
 		client: client,
-		bucket: config.Bucket,
+		bucket: constants.GCS_BUCKET,
 	}
 }
 
@@ -35,10 +36,18 @@ func InitGCSBackend(config *util.GCSInfo) {
 //
 // A successful SaveToGCS returns file's url and error == nil.
 // In contrast, a failed one returns an empty string and corresponding error.
-func (backend *GoogleCloudStorageBackend) SaveToGCS(r io.Reader, objectName string) (string, error) {
+func SaveToGCS(r io.Reader, objectName string) (string, error) {
 	ctx := context.Background()
-	object := backend.client.Bucket(backend.bucket).Object(objectName)
+	fmt.Println(objectName)
+	object := gcsBackend.client.Bucket(gcsBackend.bucket).Object(objectName)
+
+	// Set a generation-match precondition to avoid potential race conditions and data
+	// corruptions. The request to upload is aborted if the object's generation number
+	// does not match your precondition.
+	// For an object that does not yet exist, set the DoesNotExist precondition.
+	// object = object.If(storage.Conditions{DoesNotExist: true})
 	wc := object.NewWriter(ctx)
+
 	if _, err := io.Copy(wc, r); err != nil {
 		return "", err
 	}
@@ -64,6 +73,18 @@ func (backend *GoogleCloudStorageBackend) SaveToGCS(r io.Reader, objectName stri
 // DeleteFromGCS deletes a file in google cloud storage by its url
 //
 // A successful DeleteFromGCS returns error == nil. Otherwise, it returns corresponding error.
-func (backend *GoogleCloudStorageBackend) DeleteFromGCS(url string) error {
-	return nil
+func (backend *GoogleCloudStorageBackend) DeleteFromGCS(objectName string) error {
+	ctx := context.Background()
+	object := gcsBackend.client.Bucket(gcsBackend.bucket).Object(objectName)
+
+	// Set a generation-match precondition to avoid potential race
+	// conditions and data corruptions. The request to delete the file is aborted
+	// if the object's generation number does not match your precondition.
+	attrs, err := object.Attrs(ctx)
+	if err != nil {
+		return fmt.Errorf("object.Attrs: %w", err)
+	}
+	object = object.If(storage.Conditions{GenerationMatch: attrs.Generation})
+
+	return object.Delete(ctx)
 }

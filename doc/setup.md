@@ -19,7 +19,9 @@ Afterwards, you are able to restart it by click `Start` in docker desktop or run
 In the starting code, we connect to PostgreSQL database using Go. We need to install the `pq` package using go package manager:
 
 ```bash
-go get github.com/lib/pq
+# go get github.com/lib/pq
+go get -u gorm.io/gorm
+go get -u gorm.io/driver/postgres
 ```
 
 Here, we have initialize a module called `secondHand`. Now, change your directory to it. To test connection, run
@@ -36,3 +38,14 @@ Connected to PostgreSQL database successfully!
 Initialized PostgreSQL database successfully!
 ```
 
+## Constants
+
+`src/secondHand/constants/constants.go` saves a lot of configurations. You should add your own.
+
+### `GCS_BUCKE`
+
+`GCS_BUCKE` is just the name of the bucket in google cloud storage:![](./images/gcs_bucket.png)
+
+### `GCS_CREDENTIALS_FILE_PATH`
+
+`GCS_CREDENTIALS_FILE_PATH` is the path where you locate the `json` credential file. You can download it by following [this guide](https://blog.csdn.net/leolee_0606/article/details/121654458).

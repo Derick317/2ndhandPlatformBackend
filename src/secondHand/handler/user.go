@@ -1,13 +1,122 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
+	"regexp"
+	"secondHand/model"
+	"secondHand/service"
+	"secondHand/util"
+	"time"
+
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
-func signinHandler(c *gin.Context) {
+var mySigningKey = []byte("secret")
 
+func signinHandler(c *gin.Context) {
+	var user model.User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest,
+			gin.H{"error": "Cannot decode user data from client: " + err.Error()})
+		return
+	}
+
+	success, err := service.CheckUser(user.Email, user.Password)
+
+	if err != nil && !errors.Is(err, util.ErrUserNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if errors.Is(err, util.ErrUserNotFound) || !success {
+		c.JSON(http.StatusUnauthorized, gin.H{"status": "unauthorized"})
+		return
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email": user.Email,
+		"exp":   time.Now().Add(time.Hour * 24).Unix(),
+	})
+
+	tokenString, err := token.SignedString(mySigningKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.String(http.StatusOK, tokenString)
 }
 
 func signupHandler(c *gin.Context) {
+	var user model.User
+	err := c.ShouldBindJSON(&user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
+	emailRegexp := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	// usernameRegexp := regexp.MustCompile(`^[a-zA-Z0-9]$`)
+	fmt.Println(user)
+	if user.Password == "" || user.Username == "" || !emailRegexp.MatchString(user.Email) {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid username or password or email"})
+		return
+	}
+
+	success, err := service.AddUser(&user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !success {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "Email is already taken"})
+		return
+	}
+
+	c.JSON(http.StatusOK, "success")
+}
+
+// authMiddleware returns a handler function which verifies whether the token is valid
+// and sets user's id
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token_string := c.GetHeader("Authorization")
+
+		if token_string[:7] != "Bearer " {
+			c.AbortWithStatusJSON(http.StatusUnauthorized,
+				gin.H{"status": "Invalid token"})
+			return
+		}
+
+		token, err := jwt.Parse(token_string[7:], func(token *jwt.Token) (interface{}, error) {
+			return mySigningKey, nil
+		})
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized,
+				gin.H{"error": "Unable to parse token: " + err.Error()})
+			return
+		}
+
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !token.Valid || !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized,
+				gin.H{"status": "Invalid token"})
+			return
+		}
+
+		if int64(claims["exp"].(float64)) < time.Now().Unix() {
+			c.AbortWithStatusJSON(http.StatusUnauthorized,
+				gin.H{"status": "Token expired"})
+			return
+		}
+
+		c.Set("email", claims["email"].(string))
+
+		// Call the next handler
+		c.Next()
+	}
 }
