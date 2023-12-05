@@ -1,8 +1,11 @@
 package constants
 
+import "time"
+
 const (
-	POSTGRES_PASSWORD         = "temp_password"
-	POSTGRES_DB               = "temp_db"
-	GCS_BUCKET                = 
-	GCS_CREDENTIALS_FILE_PATH = 
+	LOCAL_POSTGRES            = true
+	GCS_BUCKET                = "around-cdm"
+	GCS_CREDENTIALS_FILE_PATH = "C:/Users/Derick/Downloads/gothic-gradient-398002-28b7629d9699.json"
+	ORDER_EXPIRE_TIME         = 5 * time.Minute
+	NEXTKEY_KEY               = "nextKey"
 )

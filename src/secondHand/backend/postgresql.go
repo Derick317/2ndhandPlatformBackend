@@ -2,12 +2,18 @@ package backend
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"time"
 
+	_ "github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/postgres"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"secondHand/constants"
 	"secondHand/model"
+	"secondHand/util"
 )
 
 var (
@@ -19,19 +25,32 @@ type PostgreSQLBackend struct {
 }
 
 const (
-	host     = "localhost"
-	port     = 5432
-	user     = "postgres"
-	password = constants.POSTGRES_PASSWORD
-	dbname   = constants.POSTGRES_DB
+	port = 5432
 )
 
+func connectToPostgreSQL() (*gorm.DB, error) {
+	if constants.LOCAL_POSTGRES {
+		psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+			"localhost", port, util.MustGetenv("LOCAL_POSTGRES_USER"),
+			util.MustGetenv("LOCAL_POSTGRES_PASSWORD"), util.MustGetenv("LOCAL_POSTGRES_DB"))
+		return gorm.Open(postgres.Open(psqlconn), &gorm.Config{})
+	}
+	// connect to google
+	dsn := fmt.Sprintf("host=%s user=%s dbname=%s password=%s sslmode=disable",
+		util.MustGetenv("GOOGLE_INSTANCE_CONNECTION_NAME"), util.MustGetenv("GOOGLE_POSTGRES_USER"),
+		util.MustGetenv("GOOGLE_POSTGRES_DB"), util.MustGetenv("GOOGLE_POSTGRES_PASSWORD"))
+	return gorm.Open(postgres.New(postgres.Config{
+		DriverName: "cloudsqlpostgres",
+		DSN:        dsn,
+	}), &gorm.Config{Logger: logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{SlowThreshold: time.Second},
+	),
+	})
+}
+
 func InitPostgreSQLBackend() error {
-
-	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
-	db, err := gorm.Open(postgres.Open(psqlconn), &gorm.Config{})
-
+	db, err := connectToPostgreSQL()
 	if err != nil {
 		return err
 	}
@@ -50,16 +69,23 @@ func InitPostgreSQLBackend() error {
 	if err = db.AutoMigrate(&model.Item{}); err != nil {
 		return err
 	}
+	if err = db.Migrator().DropTable(&model.Order{}); err != nil {
+		return err
+	}
+	if err = db.AutoMigrate(&model.Order{}); err != nil {
+		return err
+	}
 
 	var user = model.User{Email: "alice@alice", Username: "Alice", Password: "alice"}
 	db.Create(&user)
+	db.Create(&model.User{Email: "bob@bob.com", Username: "Bob", Password: "bob"})
 
 	dbBackend = &PostgreSQLBackend{db: db}
 	fmt.Println("Initialized PostgreSQL database successfully!")
 	return nil
 }
 
-// CreateRecord creates a user or item record in the corresponding table,
+// CreateRecord creates a user or item or order record in the corresponding table,
 // and returns the inserted data's primary key in value's id.
 // VALUE should be a pointer to an instance of user or item model.
 func CreateRecord(value interface{}) error {
@@ -67,38 +93,90 @@ func CreateRecord(value interface{}) error {
 	return result.Error
 }
 
+// The record will be save in DEST, so DEST should be a pointer.
 func ReadFromDBByPrimaryKey(dest interface{}, primaryKey interface{}) error {
-	result := dbBackend.db.Find(&dest, primaryKey)
+	result := dbBackend.db.Find(dest, primaryKey)
 	return result.Error
 }
 
-// ReadFromDBByKey query the database by a key
-// It returns gorm.ErrRecordNotFound if no record is found
-func ReadFromDBByKey(dest interface{}, key string, target string, onlyFirst bool) error {
-	var query string
+// ReadFromDBByKey queries the database by a key. The record will be save in DEST, so
+// DEST should be a pointer, no matter whether its a structure or a slice.
+// It returns gorm.ErrRecordNotFound if no record is found.
+func ReadFromDBByKey(dest interface{}, key string, target interface{}, onlyFirst bool) error {
+	var result = dbBackend.db.Where(fmt.Sprintf("%s = ?", key), target)
 	if onlyFirst {
-		query = fmt.Sprintf("%s = ?", key)
+		result = result.First(dest)
 	} else {
-		query = fmt.Sprintf("%s <> ?", key)
+		result = result.Find(dest)
 	}
-	result := dbBackend.db.Where(query, target).First(&dest)
 	return result.Error
 }
 
-// UpdateColumnWithConditions updates a column of record(s).
+// ReadFromDBByKey queries the database by keys. The record will be save in DEST, so
+// DEST should be a pointer, no matter whether its a structure or a slice.
+// It returns gorm.ErrRecordNotFound if no record is found.
+func ReadFromDBByKeys(dest interface{}, keys []string, targets []string, onlyFirst bool) error {
+	var result = dbBackend.db
+	for idx, key := range keys {
+		result = result.Where(fmt.Sprintf("%s = ?", key), targets[idx])
+	}
+	if onlyFirst {
+		result = result.First(dest)
+	} else {
+		result = result.Find(dest)
+	}
+	return result.Error
+}
+
+// DEST should be a pointer. It has no function but to represent table.
+func DeleteFromDBByPrimaryKey(dest interface{}, primaryKey interface{}) error {
+	result := dbBackend.db.Delete(dest, primaryKey)
+	return result.Error
+}
+
+// If the specified value has no primary value, a batch delete will be performed.
+// It will delete all matched records.
+// DEST should be a pointer. If DEST contains primary key, it is included in the conditions.
+//
+// It reports the number of deleted records and possible errors
+func DeleteFromDBByKey(dest interface{}, key string, target interface{}) (int64, error) {
+	var result = dbBackend.db.Where(fmt.Sprintf("%s = ?", key), target).Delete(dest)
+	return result.RowsAffected, result.Error
+}
+
+// If the specified value has no primary value, a batch delete will be performed.
+// It will delete all matched records.
+// DEST should be a pointer. If DEST contains primary key, it is included in the conditions.
+//
+// It reports the number of deleted records and possible errors
+func DeleteFromDBByKeys(dest interface{}, keys []string, targets []string) (int64, error) {
+	var result = dbBackend.db
+	for idx, key := range keys {
+		result = result.Where(fmt.Sprintf("%s = ?", key), targets[idx])
+	}
+	result = result.Delete(dest)
+	return result.RowsAffected, result.Error
+}
+
+// UpdateColumnsWithConditions updates columns of record(s).
 // We update all records which match dest's non-zero field and the condition (key and target).
 // DEST should be a pointer.
-// If COLUMN or VALUE is empty, we just save DEST as it is.
+// If VALUE is nil, we just save DEST as it is.
 // It returns the number of affected rows and possible error.
-func UpdateColumnWithConditions(dest interface{}, key string, target interface{},
-	column string, value interface{}) (int64, error) {
+func UpdateColumnsWithConditions(dest interface{}, key string, target interface{},
+	value map[string]interface{}) (int64, error) {
 	var result *gorm.DB
-	if column == "" || value == nil {
+	if value == nil {
 		result = dbBackend.db.Save(dest)
 	} else if key == "" || target == nil {
-		result = dbBackend.db.Model(&dest).Update(column, value)
+		result = dbBackend.db.Model(dest).Updates(value)
 	} else {
-		result = dbBackend.db.Model(&dest).Where(key+" = ?", target).Update(column, value)
+		result = dbBackend.db.Model(dest).Where(key+" = ?", target).Updates(value)
 	}
 	return result.RowsAffected, result.Error
+}
+
+// BeginTransaction begins a transaction.
+func BeginTransaction() *gorm.DB {
+	return dbBackend.db.Begin()
 }

@@ -37,8 +37,8 @@ func InitGCSBackend() {
 // A successful SaveToGCS returns file's url and error == nil.
 // In contrast, a failed one returns an empty string and corresponding error.
 func SaveToGCS(r io.Reader, objectName string) (string, error) {
+	return objectName, nil
 	ctx := context.Background()
-	fmt.Println(objectName)
 	object := gcsBackend.client.Bucket(gcsBackend.bucket).Object(objectName)
 
 	// Set a generation-match precondition to avoid potential race conditions and data
@@ -65,8 +65,7 @@ func SaveToGCS(r io.Reader, objectName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	fmt.Printf("File is saved to GCS: %s\n", attrs.MediaLink)
+	fmt.Println(attrs)
 	return attrs.MediaLink, nil
 }
 

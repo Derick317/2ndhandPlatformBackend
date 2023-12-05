@@ -8,6 +8,7 @@ import (
 	"secondHand/model"
 	"secondHand/service"
 	"secondHand/util"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,7 +25,7 @@ func signinHandler(c *gin.Context) {
 		return
 	}
 
-	success, err := service.CheckUser(user.Email, user.Password)
+	success, err := service.CheckUser(&user, user.Email, user.Password)
 
 	if err != nil && !errors.Is(err, util.ErrUserNotFound) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -37,8 +38,8 @@ func signinHandler(c *gin.Context) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email": user.Email,
-		"exp":   time.Now().Add(time.Hour * 24).Unix(),
+		"id":      strconv.FormatUint(user.ID, 10),
+		"expTime": strconv.FormatInt(time.Now().Add(time.Hour*24).Unix(), 10),
 	})
 
 	tokenString, err := token.SignedString(mySigningKey)
@@ -47,7 +48,7 @@ func signinHandler(c *gin.Context) {
 		return
 	}
 
-	c.String(http.StatusOK, tokenString)
+	c.JSON(http.StatusOK, gin.H{"token": tokenString, "username": user.Username, "id": user.ID})
 }
 
 func signupHandler(c *gin.Context) {
@@ -60,7 +61,6 @@ func signupHandler(c *gin.Context) {
 
 	emailRegexp := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	// usernameRegexp := regexp.MustCompile(`^[a-zA-Z0-9]$`)
-	fmt.Println(user)
 	if user.Password == "" || user.Username == "" || !emailRegexp.MatchString(user.Email) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "Invalid username or password or email"})
 		return
@@ -78,6 +78,19 @@ func signupHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, "success")
+}
+
+func querySellerListHandler(c *gin.Context) {
+	sellerId, err := getUserIdFromGinContent(c)
+	if err != nil {
+		return
+	}
+	list, err := service.QuerySellerList(sellerId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, list)
 }
 
 // authMiddleware returns a handler function which verifies whether the token is valid
@@ -108,15 +121,33 @@ func authMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if int64(claims["exp"].(float64)) < time.Now().Unix() {
+		if expTime, err := strconv.ParseInt(claims["expTime"].(string), 10, 64); err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized,
+				gin.H{"error": fmt.Sprintf("Unable to Parse expire time: %v", err)})
+			return
+		} else if expTime < time.Now().Unix() {
 			c.AbortWithStatusJSON(http.StatusUnauthorized,
 				gin.H{"status": "Token expired"})
 			return
 		}
-
-		c.Set("email", claims["email"].(string))
-
+		if user_id, err := strconv.ParseUint(claims["id"].(string), 10, 64); err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized,
+				gin.H{"error": fmt.Sprintf("Unable to Parse id: %v", err)})
+			return
+		} else {
+			c.Set("user_id", user_id)
+		}
 		// Call the next handler
 		c.Next()
 	}
+}
+
+func getUserIdFromGinContent(c *gin.Context) (uint64, error) {
+	userId, exists := c.Get("user_id")
+	uintId, ok := userId.(uint64)
+	if !exists || !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": util.ErrUnexpected("").Error()})
+		return uintId, util.ErrUnexpected("")
+	}
+	return uintId, nil
 }
