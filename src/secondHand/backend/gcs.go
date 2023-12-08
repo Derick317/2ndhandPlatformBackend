@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"secondHand/constants"
+	"secondHand/util"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/option"
@@ -21,14 +21,14 @@ type GoogleCloudStorageBackend struct {
 
 func InitGCSBackend() {
 	client, err := storage.NewClient(context.Background(),
-		option.WithCredentialsFile(constants.GCS_CREDENTIALS_FILE_PATH))
+		option.WithCredentialsFile(util.MustGetenv("GOOGLE_APPLICATION_CREDENTIALS")))
 	if err != nil {
 		panic(err)
 	}
 
 	gcsBackend = &GoogleCloudStorageBackend{
 		client: client,
-		bucket: constants.GCS_BUCKET,
+		bucket: util.MustGetenv("GOOGLE_CLOUD_STORAGE_BUCKET"),
 	}
 }
 
@@ -37,7 +37,7 @@ func InitGCSBackend() {
 // A successful SaveToGCS returns file's url and error == nil.
 // In contrast, a failed one returns an empty string and corresponding error.
 func SaveToGCS(r io.Reader, objectName string) (string, error) {
-	return objectName, nil
+	// return objectName, nil
 	ctx := context.Background()
 	object := gcsBackend.client.Bucket(gcsBackend.bucket).Object(objectName)
 
@@ -65,14 +65,13 @@ func SaveToGCS(r io.Reader, objectName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	fmt.Println(attrs)
 	return attrs.MediaLink, nil
 }
 
 // DeleteFromGCS deletes a file in google cloud storage by its url
 //
 // A successful DeleteFromGCS returns error == nil. Otherwise, it returns corresponding error.
-func (backend *GoogleCloudStorageBackend) DeleteFromGCS(objectName string) error {
+func DeleteFromGCS(objectName string) error {
 	ctx := context.Background()
 	object := gcsBackend.client.Bucket(gcsBackend.bucket).Object(objectName)
 

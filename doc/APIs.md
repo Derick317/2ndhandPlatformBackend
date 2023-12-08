@@ -207,6 +207,50 @@ Response: besides [authentication errors](#authErr), `qorder` may return one of 
 - 400 (StatusBadRequest): `{"status": "order does not exist!"}`
 - 200 (OK)
 
+## Search Items
+
+Path: `/search`
+
+Methods: GET
+
+Data:
+
+```json
+{
+    "tag": "0",
+    "keywords": "some keywords"
+}
+```
+
+Header: nothing
+
+Response:
+
+- 200 (OK): `[item_id1, item_id2, item_id3, ...]`
+
+- 400 (StatusBadRequest): `{"status": "invalid tag: [tag]"}`
+
+- 500 (StatusInternalServerError): `{"error": [error]}`
+
+
+## Delete an Item
+
+Path: `/ditem`
+
+Method: DELETE
+
+Data: `{"item_id": "example_id"}`
+
+Header: `{ Authorization: "Bearer [token]"}`
+
+Response:
+
+- 200 (OK)
+- 400 (StatusBadRequest): `{"error": [Item [ID] does not exist."}`
+- 400 (StatusBadRequest): `{"status": "cannot delete item whose status is [Status]"}`
+- 401 (StatusUnauthorized): `{"status": "unauthorized"}`
+- 500 (StatusInternalServerError): `{"error": [error]}`
+
 ## <a name="authErr">Authentication Errors</a> 
 
 - 401 (StatusUnauthorized): `{"status": "Invalid token"}`

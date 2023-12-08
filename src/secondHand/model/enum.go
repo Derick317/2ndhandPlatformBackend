@@ -1,9 +1,10 @@
 package model
 
-type TagType = uint
+type TagType = uint64
 
 const (
-	Book TagType = iota
+	TagAll TagType = iota
+	Book
 	Electronics
 	Stationery
 	Others
@@ -13,9 +14,10 @@ const (
 type ItemStatusType = uint
 
 const (
-	Available TagType = iota
+	Available ItemStatusType = iota
 	SellerModifying
 	OnOrder // some buyer is about to buy but has not pay for it yet
 	Sold
 	Deleted // deleted by seller
+	StatusCounter
 )

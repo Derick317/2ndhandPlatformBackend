@@ -138,3 +138,35 @@ func TestDeleteFromDBByKeyNoRecord(t *testing.T) {
 		t.Errorf("Unexpect num: %d", num)
 	}
 }
+
+func TestReadFromDBEqualOrIncludeAll(t *testing.T) {
+	InitPostgreSQLBackend()
+	CreateRecord(&model.Item{Title: "Math book", Price: 2.5, Status: 1, SellerId: 2})
+	CreateRecord(&model.Item{Title: "Book teaching your cat", Price: 5, Status: 0, SellerId: 1})
+	CreateRecord(&model.Item{Title: "Cat loving eating books", Price: 3, Status: 0, SellerId: 2})
+	CreateRecord(&model.Item{Title: "A chicken laying eggs", Price: 388, Status: 0, SellerId: 3})
+	var items []model.Item
+	if err := ReadFromDBEqualOrInclude(&items, []string{"title", "status"},
+		[]interface{}{[]string{"book"}, 0}, []bool{false, true}, false); err != nil {
+		t.Errorf("Unexpect error: %v", err)
+	}
+	if len(items) != 2 || items[0].Price+items[1].Price != 8 {
+		t.Errorf("Unexpect items: %v", items)
+	}
+}
+
+func TestReadFromDBEqualOrIncludeFirst(t *testing.T) {
+	InitPostgreSQLBackend()
+	CreateRecord(&model.Item{Title: "Math book", Price: 2.5, Status: 1, SellerId: 2})
+	CreateRecord(&model.Item{Title: "Book teaching your cat", Price: 5, Status: 0, SellerId: 1})
+	CreateRecord(&model.Item{Title: "Cat loving eating books", Price: 3, Status: 0, SellerId: 2})
+	CreateRecord(&model.Item{Title: "A chicken laying eggs", Price: 388, Status: 0, SellerId: 3})
+	var items []model.Item
+	if err := ReadFromDBEqualOrInclude(&items, []string{"title", "status"},
+		[]interface{}{[]string{"book", "cat"}, 0}, []bool{false, true}, true); err != nil {
+		t.Errorf("Unexpect error: %v", err)
+	}
+	if len(items) != 1 || !(items[0].Price == 5 || items[1].Price == 3) {
+		t.Errorf("Unexpect items: %v", items)
+	}
+}

@@ -112,13 +112,38 @@ func ReadFromDBByKey(dest interface{}, key string, target interface{}, onlyFirst
 	return result.Error
 }
 
-// ReadFromDBByKey queries the database by keys. The record will be save in DEST, so
+// ReadFromDBByKeys queries the database by keys. The record will be save in DEST, so
 // DEST should be a pointer, no matter whether its a structure or a slice.
 // It returns gorm.ErrRecordNotFound if no record is found.
 func ReadFromDBByKeys(dest interface{}, keys []string, targets []string, onlyFirst bool) error {
 	var result = dbBackend.db
 	for idx, key := range keys {
 		result = result.Where(fmt.Sprintf("%s = ?", key), targets[idx])
+	}
+	if onlyFirst {
+		result = result.First(dest)
+	} else {
+		result = result.Find(dest)
+	}
+	return result.Error
+}
+
+// ReadFromDBEqualOrInclude queries record(s) whose KEY(s) equal or include corresponding
+// TARGETS (non-case sensitivity). The record will be save in DEST, so
+// DEST should be a pointer, no matter whether its a structure or a slice.
+// It returns gorm.ErrRecordNotFound if no record is found.
+func ReadFromDBEqualOrInclude(dest interface{}, keys []string, targets []interface{},
+	equal []bool, onlyFirst bool) error {
+	var result = dbBackend.db
+	for idx, key := range keys {
+		if equal[idx] {
+			result = result.Where(fmt.Sprintf("%s = ?", key), targets[idx])
+		} else {
+			for _, target := range (targets[idx]).([]string) {
+				result = result.Where(fmt.Sprintf("%s iLike ?", key),
+					fmt.Sprintf("%%%s%%", target))
+			}
+		}
 	}
 	if onlyFirst {
 		result = result.First(dest)

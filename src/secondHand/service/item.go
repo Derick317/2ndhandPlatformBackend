@@ -4,32 +4,30 @@ import (
 	"fmt"
 	"mime/multipart"
 	"secondHand/backend"
-	"secondHand/constants"
 	"secondHand/model"
-	"strconv"
 )
 
 // ITEM.ImageUrls should be empty.
 func AddItem(item *model.Item, imageFiles []multipart.File) error {
+	var err error = nil
+
 	// Clear item's imageurls
-	item.ImageUrls.Add(constants.NEXTKEY_KEY, "0")
+	item.ImageNextKey = 0
 
 	// Save to database
-	backend.CreateRecord(item)
+	if err = backend.CreateRecord(item); err != nil {
+		return err
+	}
 
 	// Save images in GCS
 	for _, imageFile := range imageFiles {
-		fileName := strconv.FormatUint(item.ID, 10) + "-" + item.ImageUrls[constants.NEXTKEY_KEY]
+		fileName := fmt.Sprintf("%d-%d", item.ID, item.ImageNextKey)
 		medialink, err := backend.SaveToGCS(imageFile, fileName)
 		if err != nil {
 			return err
 		}
 		item.ImageUrls.Add(fileName, medialink)
-		currentKey, err := strconv.Atoi(item.ImageUrls[constants.NEXTKEY_KEY])
-		if err != nil {
-			return err
-		}
-		item.ImageUrls[constants.NEXTKEY_KEY] = strconv.Itoa(currentKey + 1)
+		item.ImageNextKey += 1
 	}
 
 	// Update record in the database
@@ -39,6 +37,20 @@ func AddItem(item *model.Item, imageFiles []multipart.File) error {
 	}
 	if numRowsAffected != 1 {
 		return fmt.Errorf("changed %d records at AddItem", numRowsAffected)
+	}
+	return nil
+}
+
+// DeleteItem deletes item's record from the database and its images from Google cloud storage
+// Item's status should be "Deleted"
+func DeleteItem(item *model.Item) error {
+	if err := backend.DeleteFromDBByPrimaryKey(&model.Item{}, item.ID); err != nil {
+		return err
+	}
+	for imageKey := range item.ImageUrls {
+		if err := backend.DeleteFromGCS(imageKey); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -58,7 +70,7 @@ func TestAndSetItemStatus(id uint64, target model.ItemStatusType,
 	var item model.Item
 	// Read initial status and version
 	if err := backend.ReadFromDBByPrimaryKey(&item, id); err != nil {
-		return model.TagCounter, false, err
+		return model.StatusCounter, false, err
 	}
 	if item.Status != target {
 		return item.Status, false, nil
@@ -68,14 +80,14 @@ func TestAndSetItemStatus(id uint64, target model.ItemStatusType,
 	num, err := backend.UpdateColumnsWithConditions(&item, "version", item.Version,
 		map[string]interface{}{"status": newStatus, "version": item.Version + 1})
 	if err != nil {
-		return model.TagCounter, false, err
+		return model.StatusCounter, false, err
 	}
 	// Check success
 	if num == 1 {
 		return newStatus, true, nil
 	}
 	if err := backend.ReadFromDBByPrimaryKey(&item, id); err != nil {
-		return model.TagCounter, false, err
+		return model.StatusCounter, false, err
 	}
 	return item.Status, false, nil
 }

@@ -1,15 +1,17 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
-	"secondHand/constants"
+	"secondHand/backend"
 	"secondHand/model"
 	"secondHand/service"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func addItemHandler(c *gin.Context) {
@@ -63,6 +65,61 @@ func addItemHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{})
 }
 
+func deleteItemHandler(c *gin.Context) {
+	sellerId, itemId, err := getUserIdAndItemId(c)
+	if err != nil {
+		return
+	}
+	var item model.Item
+	if err = backend.ReadFromDBByPrimaryKey(&item, itemId); errors.Is(err,
+		gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Item %d does not exist.", itemId)})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if item.SellerId != sellerId {
+		c.JSON(http.StatusUnauthorized, gin.H{"status": "unauthorized"})
+		return
+	}
+
+	tx := backend.BeginTransaction()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err = tx.Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	status, ok, err := service.TestAndSetItemStatus(itemId, model.Available, model.Deleted)
+	if err != nil || !ok {
+		tx.Rollback()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusBadRequest,
+				gin.H{"status": fmt.Sprintf("cannot delete item whose status is %d", status)})
+		}
+		return
+	}
+
+	if err = service.DeleteItem(&item); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{})
+}
+
 func queryItemHandler(c *gin.Context) {
 	itemId, err := strconv.ParseUint(c.Query("id"), 10, 64)
 	if err != nil {
@@ -77,7 +134,6 @@ func queryItemHandler(c *gin.Context) {
 			gin.H{"error": fmt.Sprintf("unable to read item: %s", err.Error())})
 		return
 	}
-	item.ImageUrls.Remove(constants.NEXTKEY_KEY)
 
 	c.PureJSON(http.StatusOK, gin.H{
 		"id":          item.ID,

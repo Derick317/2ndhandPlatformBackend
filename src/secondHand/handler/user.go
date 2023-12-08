@@ -97,15 +97,15 @@ func querySellerListHandler(c *gin.Context) {
 // and sets user's id
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token_string := c.GetHeader("Authorization")
+		tokenString := c.GetHeader("Authorization")
 
-		if token_string[:7] != "Bearer " {
+		if len(tokenString) < 7 || tokenString[:7] != "Bearer " {
 			c.AbortWithStatusJSON(http.StatusUnauthorized,
 				gin.H{"status": "Invalid token"})
 			return
 		}
 
-		token, err := jwt.Parse(token_string[7:], func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString[7:], func(token *jwt.Token) (interface{}, error) {
 			return mySigningKey, nil
 		})
 		if err != nil {

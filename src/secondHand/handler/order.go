@@ -14,7 +14,7 @@ import (
 )
 
 func addOrderHandler(c *gin.Context) {
-	buyerId, itemId, err := getBuyerIdAndItemId(c)
+	buyerId, itemId, err := getUserIdAndItemId(c)
 	if err != nil {
 		return
 	}
@@ -55,7 +55,7 @@ func addOrderHandler(c *gin.Context) {
 }
 
 func payForOrderHandler(c *gin.Context) {
-	buyerId, itemId, err := getBuyerIdAndItemId(c)
+	buyerId, itemId, err := getUserIdAndItemId(c)
 	if err != nil {
 		return
 	}
@@ -114,7 +114,7 @@ func queryOrderHandler(c *gin.Context) {
 }
 
 func cancelOrderHander(c *gin.Context) {
-	buyerId, itemId, err := getBuyerIdAndItemId(c)
+	buyerId, itemId, err := getUserIdAndItemId(c)
 	if err != nil {
 		return
 	}
@@ -137,7 +137,7 @@ func cancelOrderHander(c *gin.Context) {
 }
 
 // "item_id" should be sent in a postform
-func getBuyerIdAndItemId(c *gin.Context) (uint64, uint64, error) {
+func getUserIdAndItemId(c *gin.Context) (uint64, uint64, error) {
 	buyerId, err := getUserIdFromGinContent(c)
 	if err != nil {
 		return 0, 0, err
