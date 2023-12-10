@@ -1,21 +1,25 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"secondHand/backend"
 	"secondHand/model"
+	"secondHand/util"
+
+	"gorm.io/gorm"
 )
 
 // ITEM.ImageUrls should be empty.
-func AddItem(item *model.Item, imageFiles []multipart.File) error {
+func AddItem(item *model.Item, imageFiles []multipart.File, tx *gorm.DB) error {
 	var err error = nil
 
 	// Clear item's imageurls
 	item.ImageNextKey = 0
 
 	// Save to database
-	if err = backend.CreateRecord(item); err != nil {
+	if err = backend.CreateRecord(item, tx); err != nil {
 		return err
 	}
 
@@ -24,14 +28,14 @@ func AddItem(item *model.Item, imageFiles []multipart.File) error {
 		fileName := fmt.Sprintf("%d-%d", item.ID, item.ImageNextKey)
 		medialink, err := backend.SaveToGCS(imageFile, fileName)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %s", util.ErrGCS, err.Error())
 		}
 		item.ImageUrls.Add(fileName, medialink)
 		item.ImageNextKey += 1
 	}
 
 	// Update record in the database
-	numRowsAffected, err := backend.UpdateColumnsWithConditions(item, "", nil, nil)
+	numRowsAffected, err := backend.UpdateColumnsWithConditions(item, "", nil, nil, tx)
 	if err != nil {
 		return err
 	}
@@ -43,13 +47,13 @@ func AddItem(item *model.Item, imageFiles []multipart.File) error {
 
 // DeleteItem deletes item's record from the database and its images from Google cloud storage
 // Item's status should be "Deleted"
-func DeleteItem(item *model.Item) error {
-	if err := backend.DeleteFromDBByPrimaryKey(&model.Item{}, item.ID); err != nil {
+func DeleteItem(item *model.Item, tx *gorm.DB) error {
+	if err := backend.DeleteFromDBByPrimaryKey(&model.Item{}, item.ID, tx); err != nil {
 		return err
 	}
 	for imageKey := range item.ImageUrls {
 		if err := backend.DeleteFromGCS(imageKey); err != nil {
-			return err
+			return fmt.Errorf("%w: %s", util.ErrGCS, err.Error())
 		}
 	}
 	return nil
@@ -66,10 +70,10 @@ func DeleteItem(item *model.Item) error {
 //
 // This function is atomic.
 func TestAndSetItemStatus(id uint64, target model.ItemStatusType,
-	newStatus model.ItemStatusType) (model.ItemStatusType, bool, error) {
+	newStatus model.ItemStatusType, tx *gorm.DB) (model.ItemStatusType, bool, error) {
 	var item model.Item
 	// Read initial status and version
-	if err := backend.ReadFromDBByPrimaryKey(&item, id); err != nil {
+	if err := backend.ReadFromDBByPrimaryKey(&item, id, tx); err != nil {
 		return model.StatusCounter, false, err
 	}
 	if item.Status != target {
@@ -78,7 +82,7 @@ func TestAndSetItemStatus(id uint64, target model.ItemStatusType,
 
 	// Set new status
 	num, err := backend.UpdateColumnsWithConditions(&item, "version", item.Version,
-		map[string]interface{}{"status": newStatus, "version": item.Version + 1})
+		map[string]interface{}{"status": newStatus, "version": item.Version + 1}, tx)
 	if err != nil {
 		return model.StatusCounter, false, err
 	}
@@ -86,13 +90,17 @@ func TestAndSetItemStatus(id uint64, target model.ItemStatusType,
 	if num == 1 {
 		return newStatus, true, nil
 	}
-	if err := backend.ReadFromDBByPrimaryKey(&item, id); err != nil {
+	if err := backend.ReadFromDBByPrimaryKey(&item, id, tx); err != nil {
 		return model.StatusCounter, false, err
 	}
 	return item.Status, false, nil
 }
 
 // The record will be save in ITEM, so ITEM should be a pointer.
-func QueryItem(item *model.Item, itemId uint64) error {
-	return backend.ReadFromDBByPrimaryKey(item, itemId)
+func QueryItem(item *model.Item, itemId uint64, tx *gorm.DB) error {
+	err := backend.ReadFromDBByPrimaryKey(item, itemId, tx)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return util.ErrItemNotFound
+	}
+	return err
 }

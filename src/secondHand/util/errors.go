@@ -2,7 +2,6 @@ package util
 
 import (
 	"errors"
-	"fmt"
 )
 
 var (
@@ -10,8 +9,6 @@ var (
 	ErrEmailExists   = errors.New("email has already exists")
 	ErrOrderNoExists = errors.New("order does not exist")
 	ErrItemNotFound  = errors.New("item not found")
+	ErrGCS           = errors.New("errors from GCS")
+	ErrUnexpected    = errors.New("unexpected error because of bugs")
 )
-
-func ErrUnexpected(format string, a ...any) error {
-	return fmt.Errorf("unexpected error because of bugs: %s", fmt.Sprintf(format, a...))
-}

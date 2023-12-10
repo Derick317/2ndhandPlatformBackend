@@ -14,7 +14,7 @@ import (
 func TestCheckUserMatch(t *testing.T) {
 	backend.InitPostgreSQLBackend()
 	var user model.User
-	result, err := CheckUser(&user, "alice@alice", "alice")
+	result, err := CheckUser(&user, "alice@alice", "alice", nil)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -29,7 +29,7 @@ func TestCheckUserMatch(t *testing.T) {
 func TestCheckUserPasswordNotMatch(t *testing.T) {
 	backend.InitPostgreSQLBackend()
 	var user model.User
-	result, err := CheckUser(&user, "alice@alice", "bob")
+	result, err := CheckUser(&user, "alice@alice", "bob", nil)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestCheckUserPasswordNotMatch(t *testing.T) {
 func TestCheckUserEmailNotFound(t *testing.T) {
 	backend.InitPostgreSQLBackend()
 	var user model.User
-	result, err := CheckUser(&user, "bob@alice", "bob")
+	result, err := CheckUser(&user, "bob@alice", "bob", nil)
 	if !errors.Is(err, util.ErrUserNotFound) {
 		t.Errorf("Expect ErrUserNotFound, but get %v", err)
 	}
@@ -53,7 +53,7 @@ func TestCheckUserEmailNotFound(t *testing.T) {
 func TestAddUserGood(t *testing.T) {
 	backend.InitPostgreSQLBackend()
 	user := model.User{Email: "bob@bob", Username: "Bob", Password: "bob"}
-	success, err := AddUser(&user)
+	success, err := AddUser(&user, nil)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestAddUserUserAlreadyExist(t *testing.T) {
 	backend.InitPostgreSQLBackend()
 	user := model.User{Email: "alice@alice", Username: "Alice2", Password: "alice2"}
 
-	success, err := AddUser(&user)
+	success, err := AddUser(&user, nil)
 
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
@@ -78,7 +78,7 @@ func TestAddUserUserAlreadyExist(t *testing.T) {
 
 func TestGetUserIdGood(t *testing.T) {
 	backend.InitPostgreSQLBackend()
-	result, err := GetUserId("alice@alice")
+	result, err := GetUserId("alice@alice", nil)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestGetUserIdGood(t *testing.T) {
 
 func TestGetUserIdEmailNotFound(t *testing.T) {
 	backend.InitPostgreSQLBackend()
-	result, err := GetUserId("bob@alice")
+	result, err := GetUserId("bob@alice", nil)
 	if !errors.Is(err, util.ErrUserNotFound) {
 		t.Errorf("Expect ErrUserNotFound, but get %v", err)
 	}
@@ -101,13 +101,13 @@ func TestGetUserIdEmailNotFound(t *testing.T) {
 func TestUserAddOrder(t *testing.T) {
 	backend.InitPostgreSQLBackend()
 	var user model.User
-	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true); err != nil {
+	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := UserAddOrder(user.ID, 2); err != nil {
+	if err := UserAddOrder(user.ID, 2, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true); err != nil {
+	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true, nil); err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }
@@ -121,17 +121,17 @@ func TestUserRemoveOrders(t *testing.T) {
 	backend.InitPostgreSQLBackend()
 	var user model.User
 	addTwoOrders(t)
-	if ok, err := UserRemoveOrder(user.ID, 2); err != nil {
+	if ok, err := UserRemoveOrder(user.ID, 2, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	} else if !ok {
 		t.Errorf("Fail to remove order!")
 	}
 	var order model.Order
-	err := backend.ReadFromDBByKey(&order, "item_id", "2", true)
+	err := backend.ReadFromDBByKey(&order, "item_id", "2", true, nil)
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	err = backend.ReadFromDBByKey(&order, "item_id", "10", true)
+	err = backend.ReadFromDBByKey(&order, "item_id", "10", true, nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
@@ -141,13 +141,13 @@ func TestQuerySellerList(t *testing.T) {
 	var item1 = model.Item{SellerId: 2, Price: 10.4, Tag: 1, Description: "Total football"}
 	var item2 = model.Item{SellerId: 2, Price: 0.5, Tag: 0, Description: "Baseball"}
 	backend.InitPostgreSQLBackend()
-	if err := AddItem(&item1, []multipart.File{}); err != nil {
+	if err := AddItem(&item1, []multipart.File{}, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := AddItem(&item2, []multipart.File{}); err != nil {
+	if err := AddItem(&item2, []multipart.File{}, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if list, err := QuerySellerList(2); err != nil {
+	if list, err := QuerySellerList(2, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	} else if len(list) != 2 || !(list[0] == 1 && list[1] == 2 || list[0] == 2 && list[1] == 1) {
 		t.Errorf("Unexpect list: %v", list)
@@ -157,16 +157,16 @@ func TestQuerySellerList(t *testing.T) {
 // addTwoOrders adds the 2nd item and the 10th item to Alice's order
 func addTwoOrders(t *testing.T) {
 	var user model.User
-	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true); err != nil {
+	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := UserAddOrder(user.ID, 2); err != nil {
+	if err := UserAddOrder(user.ID, 2, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true); err != nil {
+	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := UserAddOrder(user.ID, 10); err != nil {
+	if err := UserAddOrder(user.ID, 10, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 }

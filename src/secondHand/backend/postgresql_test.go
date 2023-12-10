@@ -8,11 +8,11 @@ import (
 func TestReadFromDBByKeyFirstMatch(t *testing.T) {
 	InitPostgreSQLBackend()
 	apple := model.Item{SellerId: 1, Price: 1.5, Description: "apple"}
-	if err := CreateRecord(&apple); err != nil {
+	if err := CreateRecord(&apple, nil); err != nil {
 		t.Errorf("Unexpect error in CreateRecord: %v", err)
 	}
 	var destItem model.Item
-	if err := ReadFromDBByKey(&destItem, "seller_id", "1", true); err != nil {
+	if err := ReadFromDBByKey(&destItem, "seller_id", "1", true, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 
@@ -27,22 +27,22 @@ func TestReadFromDBByKeyAllMatch(t *testing.T) {
 	pineapple := model.Item{SellerId: 1, Price: 13.2, Description: "apple"}
 	peach := model.Item{SellerId: 2, Description: "peach"}
 	banana := model.Item{SellerId: 1, Description: "banana"}
-	if err := CreateRecord(&apple); err != nil {
+	if err := CreateRecord(&apple, nil); err != nil {
 		t.Errorf("Unexpect error in CreateRecord: %v", err)
 	}
-	if err := CreateRecord(&pineapple); err != nil {
+	if err := CreateRecord(&pineapple, nil); err != nil {
 		t.Errorf("Unexpect error in CreateRecord: %v", err)
 	}
-	if err := CreateRecord(&banana); err != nil {
+	if err := CreateRecord(&banana, nil); err != nil {
 		t.Errorf("Unexpect error in CreateRecord: %v", err)
 	}
-	if err := CreateRecord(&peach); err != nil {
+	if err := CreateRecord(&peach, nil); err != nil {
 		t.Errorf("Unexpect error in CreateRecord: %v", err)
 	}
 
 	var destItems []model.Item
 	if err := ReadFromDBByKeys(&destItems, []string{"seller_id", "description"},
-		[]string{"1", "apple"}, false); err != nil {
+		[]string{"1", "apple"}, false, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	if destItems[0].SellerId != 1 && destItems[1].SellerId != 1 {
@@ -53,16 +53,17 @@ func TestReadFromDBByKeyAllMatch(t *testing.T) {
 func TestDeleteFromDBByKeysOneRecord(t *testing.T) {
 	InitPostgreSQLBackend()
 	order := model.Order{ItemId: 1, BuyerId: 1, ExpTime: 10}
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	order.ItemId = 2
 	order.ID = 0
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 
-	num, err := DeleteFromDBByKeys(&model.Order{}, []string{"item_id", "buyer_id"}, []string{"1", "1"})
+	num, err := DeleteFromDBByKeys(&model.Order{}, []string{"item_id", "buyer_id"},
+		[]string{"1", "1"}, nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
@@ -74,21 +75,21 @@ func TestDeleteFromDBByKeysOneRecord(t *testing.T) {
 func TestDeleteFromDBByKeysTwoRecords(t *testing.T) {
 	InitPostgreSQLBackend()
 	order := model.Order{ItemId: 1, BuyerId: 1, ExpTime: 10}
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	order.ItemId = 2 // {ItemId: 2, BuyerId: 1, ExpTime: 10}
 	order.ID = 0
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	order.BuyerId = 2 // {ItemId: 2, BuyerId: 2, ExpTime: 10}
 	order.ID = 0
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 
-	num, err := DeleteFromDBByKeys(&model.Order{}, []string{"buyer_id"}, []string{"1"})
+	num, err := DeleteFromDBByKeys(&model.Order{}, []string{"buyer_id"}, []string{"1"}, nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
@@ -100,21 +101,21 @@ func TestDeleteFromDBByKeysTwoRecords(t *testing.T) {
 func TestDeleteFromDBByKeyTwoRecords(t *testing.T) {
 	InitPostgreSQLBackend()
 	order := model.Order{ItemId: 1, BuyerId: 1, ExpTime: 10}
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	order.ItemId = 2 // {ItemId: 2, BuyerId: 1, ExpTime: 10}
 	order.ID = 0
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	order.BuyerId = 2 // {ItemId: 2, BuyerId: 2, ExpTime: 10}
 	order.ID = 0
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 
-	num, err := DeleteFromDBByKey(&model.Order{}, "buyer_id", "1")
+	num, err := DeleteFromDBByKey(&model.Order{}, "buyer_id", "1", nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
@@ -126,11 +127,11 @@ func TestDeleteFromDBByKeyTwoRecords(t *testing.T) {
 func TestDeleteFromDBByKeyNoRecord(t *testing.T) {
 	InitPostgreSQLBackend()
 	order := model.Order{ItemId: 1, BuyerId: 1, ExpTime: 10}
-	if err := CreateRecord(&order); err != nil {
+	if err := CreateRecord(&order, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 
-	num, err := DeleteFromDBByKey(&model.Order{}, "buyer_id", "2")
+	num, err := DeleteFromDBByKey(&model.Order{}, "buyer_id", "2", nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
@@ -141,13 +142,13 @@ func TestDeleteFromDBByKeyNoRecord(t *testing.T) {
 
 func TestReadFromDBEqualOrIncludeAll(t *testing.T) {
 	InitPostgreSQLBackend()
-	CreateRecord(&model.Item{Title: "Math book", Price: 2.5, Status: 1, SellerId: 2})
-	CreateRecord(&model.Item{Title: "Book teaching your cat", Price: 5, Status: 0, SellerId: 1})
-	CreateRecord(&model.Item{Title: "Cat loving eating books", Price: 3, Status: 0, SellerId: 2})
-	CreateRecord(&model.Item{Title: "A chicken laying eggs", Price: 388, Status: 0, SellerId: 3})
+	CreateRecord(&model.Item{Title: "Math book", Price: 2.5, Status: 1, SellerId: 2}, nil)
+	CreateRecord(&model.Item{Title: "Book teaching your cat", Price: 5, Status: 0, SellerId: 1}, nil)
+	CreateRecord(&model.Item{Title: "Cat loving eating books", Price: 3, Status: 0, SellerId: 2}, nil)
+	CreateRecord(&model.Item{Title: "A chicken laying eggs", Price: 388, Status: 0, SellerId: 3}, nil)
 	var items []model.Item
 	if err := ReadFromDBEqualOrInclude(&items, []string{"title", "status"},
-		[]interface{}{[]string{"book"}, 0}, []bool{false, true}, false); err != nil {
+		[]interface{}{[]string{"book"}, 0}, []bool{false, true}, false, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	if len(items) != 2 || items[0].Price+items[1].Price != 8 {
@@ -157,13 +158,13 @@ func TestReadFromDBEqualOrIncludeAll(t *testing.T) {
 
 func TestReadFromDBEqualOrIncludeFirst(t *testing.T) {
 	InitPostgreSQLBackend()
-	CreateRecord(&model.Item{Title: "Math book", Price: 2.5, Status: 1, SellerId: 2})
-	CreateRecord(&model.Item{Title: "Book teaching your cat", Price: 5, Status: 0, SellerId: 1})
-	CreateRecord(&model.Item{Title: "Cat loving eating books", Price: 3, Status: 0, SellerId: 2})
-	CreateRecord(&model.Item{Title: "A chicken laying eggs", Price: 388, Status: 0, SellerId: 3})
+	CreateRecord(&model.Item{Title: "Math book", Price: 2.5, Status: 1, SellerId: 2}, nil)
+	CreateRecord(&model.Item{Title: "Book teaching your cat", Price: 5, Status: 0, SellerId: 1}, nil)
+	CreateRecord(&model.Item{Title: "Cat loving eating books", Price: 3, Status: 0, SellerId: 2}, nil)
+	CreateRecord(&model.Item{Title: "A chicken laying eggs", Price: 388, Status: 0, SellerId: 3}, nil)
 	var items []model.Item
 	if err := ReadFromDBEqualOrInclude(&items, []string{"title", "status"},
-		[]interface{}{[]string{"book", "cat"}, 0}, []bool{false, true}, true); err != nil {
+		[]interface{}{[]string{"book", "cat"}, 0}, []bool{false, true}, true, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	if len(items) != 1 || !(items[0].Price == 5 || items[1].Price == 3) {

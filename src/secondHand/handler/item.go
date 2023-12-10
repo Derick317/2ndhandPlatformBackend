@@ -8,10 +8,10 @@ import (
 	"secondHand/backend"
 	"secondHand/model"
 	"secondHand/service"
+	"secondHand/util"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 func addItemHandler(c *gin.Context) {
@@ -56,8 +56,7 @@ func addItemHandler(c *gin.Context) {
 	}
 
 	// Handle request
-	err = service.AddItem(&item, files)
-	if err != nil {
+	if err = service.AddItem(&item, files, nil); err != nil {
 		c.JSON(http.StatusInternalServerError,
 			gin.H{"error": fmt.Sprintf("server cannot add item: %s", err.Error())})
 		return
@@ -71,8 +70,7 @@ func deleteItemHandler(c *gin.Context) {
 		return
 	}
 	var item model.Item
-	if err = backend.ReadFromDBByPrimaryKey(&item, itemId); errors.Is(err,
-		gorm.ErrRecordNotFound) {
+	if service.QueryItem(&item, itemId, nil); errors.Is(err, util.ErrItemNotFound) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Item %d does not exist.", itemId)})
 		return
 	} else if err != nil {
@@ -95,19 +93,28 @@ func deleteItemHandler(c *gin.Context) {
 		return
 	}
 
-	status, ok, err := service.TestAndSetItemStatus(itemId, model.Available, model.Deleted)
-	if err != nil || !ok {
+	_, ok, err := service.TestAndSetItemStatus(itemId, model.Available, model.Deleted, tx)
+	if err != nil {
 		tx.Rollback()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		} else {
-			c.JSON(http.StatusBadRequest,
-				gin.H{"status": fmt.Sprintf("cannot delete item whose status is %d", status)})
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if !ok {
+		status, ok, err := service.TestAndSetItemStatus(itemId, model.Sold, model.Deleted, tx)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !ok {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest,
+				gin.H{"status": fmt.Sprintf("cannot delete item whose status is %d", status)})
+			return
+		}
+	}
 
-	if err = service.DeleteItem(&item); err != nil {
+	if err = service.DeleteItem(&item, tx); err != nil && !errors.Is(err, util.ErrGCS) {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -129,7 +136,11 @@ func queryItemHandler(c *gin.Context) {
 	}
 
 	var item model.Item
-	if err = service.QueryItem(&item, itemId); err != nil {
+	if err = service.QueryItem(&item, itemId, nil); errors.Is(err, util.ErrItemNotFound) {
+		c.JSON(http.StatusBadRequest,
+			gin.H{"error": fmt.Sprintf("Item %d does not exist.", itemId)})
+		return
+	} else if err != nil {
 		c.JSON(http.StatusInternalServerError,
 			gin.H{"error": fmt.Sprintf("unable to read item: %s", err.Error())})
 		return

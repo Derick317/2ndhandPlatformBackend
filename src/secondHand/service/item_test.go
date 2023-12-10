@@ -10,7 +10,7 @@ import (
 func TestAddItemGoodButNoImage(t *testing.T) {
 	var item = model.Item{SellerId: 10, Price: 10.4, Tag: 1, Description: "Total football"}
 	backend.InitPostgreSQLBackend()
-	err := AddItem(&item, []multipart.File{})
+	err := AddItem(&item, []multipart.File{}, nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
@@ -20,11 +20,11 @@ func TestAddItemTwoItemsNoImage(t *testing.T) {
 	var item1 = model.Item{SellerId: 10, Price: 10.4, Tag: 1, Description: "Total football"}
 	var item2 = model.Item{SellerId: 2, Price: 0.5, Tag: 0, Description: "Baseball"}
 	backend.InitPostgreSQLBackend()
-	err := AddItem(&item1, []multipart.File{})
+	err := AddItem(&item1, []multipart.File{}, nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	err = AddItem(&item2, []multipart.File{})
+	err = AddItem(&item2, []multipart.File{}, nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
@@ -33,12 +33,12 @@ func TestAddItemTwoItemsNoImage(t *testing.T) {
 func TestStatusTestAndSetOne(t *testing.T) {
 	var item1 = model.Item{SellerId: 10, Price: 10.4, Tag: 1, Description: "Total football"}
 	backend.InitPostgreSQLBackend()
-	err := AddItem(&item1, []multipart.File{})
+	err := AddItem(&item1, []multipart.File{}, nil)
 	if err != nil {
 		t.Errorf("Unexpect error when adding item: %v", err)
 	}
 	newStatus, ok, err := TestAndSetItemStatus(1, model.ItemStatusType(model.Available),
-		model.ItemStatusType(model.OnOrder))
+		model.ItemStatusType(model.OnOrder), nil)
 	if err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestStatusTestAndSetMultiple(t *testing.T) {
 	const NUM_ROUTINE = 100
 	backend.InitPostgreSQLBackend()
 	var item = model.Item{SellerId: 10, Price: 10.4, Tag: 1, Description: "Total football"}
-	err := AddItem(&item, []multipart.File{})
+	err := AddItem(&item, []multipart.File{}, nil)
 	if err != nil {
 		t.Errorf("Unexpect error when adding item: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestStatusTestAndSetMultiple(t *testing.T) {
 	for idx := 0; idx < NUM_ROUTINE; idx++ {
 		go func() {
 			newStatus, ok, err := TestAndSetItemStatus(1, model.ItemStatusType(model.Available),
-				model.ItemStatusType(model.OnOrder))
+				model.ItemStatusType(model.OnOrder), nil)
 			if err != nil {
 				t.Errorf("Unexpect error: %v", err)
 			}
@@ -82,7 +82,7 @@ func TestStatusTestAndSetMultiple(t *testing.T) {
 	if num_ok != 1 {
 		t.Errorf("Unexpected num_ok: %d", num_ok)
 	}
-	if err := backend.ReadFromDBByPrimaryKey(&item, 1); err != nil {
+	if err := backend.ReadFromDBByPrimaryKey(&item, 1, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	if item.Version != 1 || item.Status != model.ItemStatusType(model.OnOrder) {
@@ -94,14 +94,14 @@ func TestQueryItem(t *testing.T) {
 	var item1 = model.Item{SellerId: 10, Price: 10.4, Tag: 1, Description: "Total football"}
 	var item2 = model.Item{SellerId: 2, Price: 0.5, Tag: 0, Description: "Baseball"}
 	backend.InitPostgreSQLBackend()
-	if err := AddItem(&item1, []multipart.File{}); err != nil {
+	if err := AddItem(&item1, []multipart.File{}, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := AddItem(&item2, []multipart.File{}); err != nil {
+	if err := AddItem(&item2, []multipart.File{}, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	var item0 model.Item
-	if err := QueryItem(&item0, 1); err != nil {
+	if err := QueryItem(&item0, 1, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	if item0.SellerId != item1.SellerId {

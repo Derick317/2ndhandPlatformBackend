@@ -25,7 +25,7 @@ func Search(keywords []string, tag model.TagType) ([]model.Item, error) {
 		qEqual = append(qEqual, true)
 	}
 	if err := backend.ReadFromDBEqualOrInclude(&items, qKeys, qTargets, qEqual,
-		false); errors.Is(err, gorm.ErrRecordNotFound) {
+		false, nil); errors.Is(err, gorm.ErrRecordNotFound) {
 		return []model.Item{}, util.ErrItemNotFound
 	} else if err != nil {
 		return []model.Item{}, err

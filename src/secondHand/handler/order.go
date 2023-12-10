@@ -31,7 +31,7 @@ func addOrderHandler(c *gin.Context) {
 		return
 	}
 
-	status, ok, err := service.TestAndSetItemStatus(itemId, model.Available, model.OnOrder)
+	status, ok, err := service.TestAndSetItemStatus(itemId, model.Available, model.OnOrder, tx)
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -41,7 +41,7 @@ func addOrderHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": fmt.Sprintf("cannot order: %d", status)})
 		return
 	}
-	if err := service.UserAddOrder(buyerId, itemId); err != nil {
+	if err := service.UserAddOrder(buyerId, itemId, tx); err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -71,7 +71,7 @@ func payForOrderHandler(c *gin.Context) {
 		return
 	}
 
-	if ok, err := service.UserRemoveOrder(buyerId, itemId); err != nil {
+	if ok, err := service.UserRemoveOrder(buyerId, itemId, tx); err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -80,7 +80,7 @@ func payForOrderHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "order does not exist"})
 		return
 	}
-	status, ok, err := service.TestAndSetItemStatus(itemId, model.OnOrder, model.Sold)
+	status, ok, err := service.TestAndSetItemStatus(itemId, model.OnOrder, model.Sold, tx)
 	if err != nil || !ok {
 		tx.Rollback()
 		var errStr string
@@ -105,7 +105,7 @@ func queryOrderHandler(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	orders, err := service.QueryBuyerOrders(buyerId)
+	orders, err := service.QueryBuyerOrders(buyerId, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -120,7 +120,7 @@ func cancelOrderHander(c *gin.Context) {
 	}
 	var order model.Order
 	if err := backend.ReadFromDBByKeys(&order, []string{"item_id", "buyer_id"},
-		[]string{strconv.FormatUint(itemId, 10), strconv.FormatUint(buyerId, 10)}, true); err != nil {
+		[]string{strconv.FormatUint(itemId, 10), strconv.FormatUint(buyerId, 10)}, true, nil); err != nil {
 		c.JSON(http.StatusInternalServerError,
 			gin.H{"error": "cannot read information of orders from database" + err.Error()})
 		return

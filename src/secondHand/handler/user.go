@@ -25,7 +25,7 @@ func signinHandler(c *gin.Context) {
 		return
 	}
 
-	success, err := service.CheckUser(&user, user.Email, user.Password)
+	success, err := service.CheckUser(&user, user.Email, user.Password, nil)
 
 	if err != nil && !errors.Is(err, util.ErrUserNotFound) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -66,7 +66,7 @@ func signupHandler(c *gin.Context) {
 		return
 	}
 
-	success, err := service.AddUser(&user)
+	success, err := service.AddUser(&user, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -85,7 +85,7 @@ func querySellerListHandler(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	list, err := service.QuerySellerList(sellerId)
+	list, err := service.QuerySellerList(sellerId, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -146,8 +146,8 @@ func getUserIdFromGinContent(c *gin.Context) (uint64, error) {
 	userId, exists := c.Get("user_id")
 	uintId, ok := userId.(uint64)
 	if !exists || !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": util.ErrUnexpected("").Error()})
-		return uintId, util.ErrUnexpected("")
+		c.JSON(http.StatusBadRequest, gin.H{"error": util.ErrUnexpected.Error()})
+		return uintId, util.ErrUnexpected
 	}
 	return uintId, nil
 }

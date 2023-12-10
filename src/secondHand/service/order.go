@@ -5,12 +5,14 @@ import (
 	"secondHand/model"
 	"secondHand/util"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // QueryBuyerOrders returns the IDs of Item in the order of buyer whose ID is BUYER_ID
-func QueryBuyerOrders(buyerId uint64) ([]uint64, error) {
+func QueryBuyerOrders(buyerId uint64, tx *gorm.DB) ([]uint64, error) {
 	var orders []model.Order
-	if err := backend.ReadFromDBByKey(&orders, "buyer_id", buyerId, false); err != nil {
+	if err := backend.ReadFromDBByKey(&orders, "buyer_id", buyerId, false, tx); err != nil {
 		return nil, err
 	}
 	items := []uint64{}
@@ -36,7 +38,7 @@ func CancelOrder(order model.Order) error {
 	if err := tx.Error; err != nil {
 		return err
 	}
-	_, ok, err := TestAndSetItemStatus(order.ItemId, model.OnOrder, model.Available)
+	_, ok, err := TestAndSetItemStatus(order.ItemId, model.OnOrder, model.Available, tx)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -45,7 +47,7 @@ func CancelOrder(order model.Order) error {
 		tx.Rollback()
 		return util.ErrOrderNoExists
 	}
-	if err := backend.DeleteFromDBByPrimaryKey(&model.Order{}, order.ID); err != nil {
+	if err := backend.DeleteFromDBByPrimaryKey(&model.Order{}, order.ID, tx); err != nil {
 		tx.Rollback()
 		return err
 	}

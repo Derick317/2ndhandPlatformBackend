@@ -88,22 +88,31 @@ func InitPostgreSQLBackend() error {
 // CreateRecord creates a user or item or order record in the corresponding table,
 // and returns the inserted data's primary key in value's id.
 // VALUE should be a pointer to an instance of user or item model.
-func CreateRecord(value interface{}) error {
-	result := dbBackend.db.Create(value)
-	return result.Error
+func CreateRecord(value interface{}, tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbBackend.db
+	}
+	return tx.Create(value).Error
 }
 
 // The record will be save in DEST, so DEST should be a pointer.
-func ReadFromDBByPrimaryKey(dest interface{}, primaryKey interface{}) error {
-	result := dbBackend.db.Find(dest, primaryKey)
+func ReadFromDBByPrimaryKey(dest interface{}, primaryKey interface{}, tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbBackend.db
+	}
+	result := tx.First(dest, primaryKey)
 	return result.Error
 }
 
 // ReadFromDBByKey queries the database by a key. The record will be save in DEST, so
 // DEST should be a pointer, no matter whether its a structure or a slice.
 // It returns gorm.ErrRecordNotFound if no record is found.
-func ReadFromDBByKey(dest interface{}, key string, target interface{}, onlyFirst bool) error {
-	var result = dbBackend.db.Where(fmt.Sprintf("%s = ?", key), target)
+func ReadFromDBByKey(dest interface{}, key string, target interface{}, onlyFirst bool,
+	tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbBackend.db
+	}
+	var result = tx.Where(fmt.Sprintf("%s = ?", key), target)
 	if onlyFirst {
 		result = result.First(dest)
 	} else {
@@ -115,8 +124,12 @@ func ReadFromDBByKey(dest interface{}, key string, target interface{}, onlyFirst
 // ReadFromDBByKeys queries the database by keys. The record will be save in DEST, so
 // DEST should be a pointer, no matter whether its a structure or a slice.
 // It returns gorm.ErrRecordNotFound if no record is found.
-func ReadFromDBByKeys(dest interface{}, keys []string, targets []string, onlyFirst bool) error {
-	var result = dbBackend.db
+func ReadFromDBByKeys(dest interface{}, keys []string, targets []string, onlyFirst bool,
+	tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbBackend.db
+	}
+	var result = tx
 	for idx, key := range keys {
 		result = result.Where(fmt.Sprintf("%s = ?", key), targets[idx])
 	}
@@ -133,8 +146,11 @@ func ReadFromDBByKeys(dest interface{}, keys []string, targets []string, onlyFir
 // DEST should be a pointer, no matter whether its a structure or a slice.
 // It returns gorm.ErrRecordNotFound if no record is found.
 func ReadFromDBEqualOrInclude(dest interface{}, keys []string, targets []interface{},
-	equal []bool, onlyFirst bool) error {
-	var result = dbBackend.db
+	equal []bool, onlyFirst bool, tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbBackend.db
+	}
+	var result = tx
 	for idx, key := range keys {
 		if equal[idx] {
 			result = result.Where(fmt.Sprintf("%s = ?", key), targets[idx])
@@ -154,8 +170,11 @@ func ReadFromDBEqualOrInclude(dest interface{}, keys []string, targets []interfa
 }
 
 // DEST should be a pointer. It has no function but to represent table.
-func DeleteFromDBByPrimaryKey(dest interface{}, primaryKey interface{}) error {
-	result := dbBackend.db.Delete(dest, primaryKey)
+func DeleteFromDBByPrimaryKey(dest interface{}, primaryKey interface{}, tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbBackend.db
+	}
+	result := tx.Delete(dest, primaryKey)
 	return result.Error
 }
 
@@ -164,8 +183,12 @@ func DeleteFromDBByPrimaryKey(dest interface{}, primaryKey interface{}) error {
 // DEST should be a pointer. If DEST contains primary key, it is included in the conditions.
 //
 // It reports the number of deleted records and possible errors
-func DeleteFromDBByKey(dest interface{}, key string, target interface{}) (int64, error) {
-	var result = dbBackend.db.Where(fmt.Sprintf("%s = ?", key), target).Delete(dest)
+func DeleteFromDBByKey(dest interface{}, key string, target interface{},
+	tx *gorm.DB) (int64, error) {
+	if tx == nil {
+		tx = dbBackend.db
+	}
+	var result = tx.Where(fmt.Sprintf("%s = ?", key), target).Delete(dest)
 	return result.RowsAffected, result.Error
 }
 
@@ -174,8 +197,12 @@ func DeleteFromDBByKey(dest interface{}, key string, target interface{}) (int64,
 // DEST should be a pointer. If DEST contains primary key, it is included in the conditions.
 //
 // It reports the number of deleted records and possible errors
-func DeleteFromDBByKeys(dest interface{}, keys []string, targets []string) (int64, error) {
-	var result = dbBackend.db
+func DeleteFromDBByKeys(dest interface{}, keys []string, targets []string,
+	tx *gorm.DB) (int64, error) {
+	if tx == nil {
+		tx = dbBackend.db
+	}
+	var result = tx
 	for idx, key := range keys {
 		result = result.Where(fmt.Sprintf("%s = ?", key), targets[idx])
 	}
@@ -189,14 +216,17 @@ func DeleteFromDBByKeys(dest interface{}, keys []string, targets []string) (int6
 // If VALUE is nil, we just save DEST as it is.
 // It returns the number of affected rows and possible error.
 func UpdateColumnsWithConditions(dest interface{}, key string, target interface{},
-	value map[string]interface{}) (int64, error) {
+	value map[string]interface{}, tx *gorm.DB) (int64, error) {
+	if tx == nil {
+		tx = dbBackend.db
+	}
 	var result *gorm.DB
 	if value == nil {
-		result = dbBackend.db.Save(dest)
+		result = tx.Save(dest)
 	} else if key == "" || target == nil {
-		result = dbBackend.db.Model(dest).Updates(value)
+		result = tx.Model(dest).Updates(value)
 	} else {
-		result = dbBackend.db.Model(dest).Where(key+" = ?", target).Updates(value)
+		result = tx.Model(dest).Where(key+" = ?", target).Updates(value)
 	}
 	return result.RowsAffected, result.Error
 }
