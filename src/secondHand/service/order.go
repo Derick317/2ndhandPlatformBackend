@@ -10,15 +10,15 @@ import (
 )
 
 // QueryBuyerOrders returns the IDs of Item in the order of buyer whose ID is BUYER_ID
-func QueryBuyerOrders(buyerId uint64, tx *gorm.DB) ([]uint64, error) {
+func QueryBuyerOrders(buyerId uint64, tx *gorm.DB) (map[uint64]int64, error) {
 	var orders []model.Order
 	if err := backend.ReadFromDBByKey(&orders, "buyer_id", buyerId, false, tx); err != nil {
 		return nil, err
 	}
-	items := []uint64{}
+	items := make(map[uint64]int64, 0)
 	for _, order := range orders {
 		if order.ExpTime > time.Now().Unix() {
-			items = append(items, order.ItemId)
+			items[order.ItemId] = order.ExpTime - time.Now().Unix()
 		} else {
 			CancelOrder(order)
 		}
@@ -51,5 +51,5 @@ func CancelOrder(order model.Order) error {
 		tx.Rollback()
 		return err
 	}
-	return nil
+	return tx.Commit().Error
 }

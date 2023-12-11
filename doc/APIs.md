@@ -173,7 +173,17 @@ Header: `{ Authorization: "Bearer [token]"}`
 Response: besides [authentication errors](#authErr), `qorder` may return one of the following result
 
 - 500 (StatusInternalServerError): `{"error": [error]}`
-- 200 (OK): `{[item1, item2, ...]}`
+- 200 (OK):
+
+  ```json
+  {
+  	Id1: remainTime1,
+      Id2: remainTime2,
+      ...
+  }
+  ```
+
+  
 
 ## Buyer Cancel an Order
 

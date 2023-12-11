@@ -55,10 +55,27 @@ func addItemHandler(c *gin.Context) {
 		files = append(files, file)
 	}
 
+	tx := backend.BeginTransaction()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err = tx.Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	// Handle request
-	if err = service.AddItem(&item, files, nil); err != nil {
+	if err = service.AddItem(&item, files, tx); err != nil && !errors.Is(err, util.ErrGCS) {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError,
 			gin.H{"error": fmt.Sprintf("server cannot add item: %s", err.Error())})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{})

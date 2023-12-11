@@ -53,14 +53,14 @@ func GetUserId(email string, tx *gorm.DB) (uint64, error) {
 }
 
 // UserAddOrder add USER_ID-th user and ITEM_ID-th item to the table.
-func UserAddOrder(userId uint64, itemId uint64, tx *gorm.DB) error {
+func UserAddOrder(userId uint64, itemId uint64, tx *gorm.DB) (model.Order, error) {
 	order := model.Order{
 		BuyerId: userId,
 		ItemId:  itemId,
 		ExpTime: time.Now().Add(constants.ORDER_EXPIRE_TIME).Unix(),
 	}
 
-	return backend.CreateRecord(&order, tx)
+	return order, backend.CreateRecord(&order, tx)
 }
 
 // UserRemoveOrder removes user's ITEM_ID-th item from the order table.

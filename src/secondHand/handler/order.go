@@ -41,7 +41,8 @@ func addOrderHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": fmt.Sprintf("cannot order: %d", status)})
 		return
 	}
-	if err := service.UserAddOrder(buyerId, itemId, tx); err != nil {
+	var order model.Order
+	if order, err = service.UserAddOrder(buyerId, itemId, tx); err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -51,6 +52,7 @@ func addOrderHandler(c *gin.Context) {
 		return
 	}
 
+	service.AddToOrderCanceler(order)
 	c.JSON(http.StatusOK, gin.H{})
 }
 

@@ -104,7 +104,7 @@ func TestUserAddOrder(t *testing.T) {
 	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := UserAddOrder(user.ID, 2, nil); err != nil {
+	if _, err := UserAddOrder(user.ID, 2, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true, nil); err != nil {
@@ -160,13 +160,13 @@ func addTwoOrders(t *testing.T) {
 	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := UserAddOrder(user.ID, 2, nil); err != nil {
+	if _, err := UserAddOrder(user.ID, 2, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 	if err := backend.ReadFromDBByKey(&user, "username", "Alice", true, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
-	if err := UserAddOrder(user.ID, 10, nil); err != nil {
+	if _, err := UserAddOrder(user.ID, 10, nil); err != nil {
 		t.Errorf("Unexpect error: %v", err)
 	}
 }
