@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fmt.Println("started-service")
+	fmt.Println("started-2nd-hand-service")
 	backend.InitPostgreSQLBackend()
 	backend.InitGCSBackend()
 	service.InitOrderCanceler()

@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -14,6 +15,11 @@ import (
 	"secondHand/constants"
 	"secondHand/model"
 	"secondHand/util"
+
+	// Note: If connecting using the App Engine Flex Go runtime, use
+	// "github.com/jackc/pgx/stdlib" instead, since v5 requires
+	// Go modules which are not supported by App Engine Flex.
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 var (
@@ -28,7 +34,53 @@ const (
 	port = 5432
 )
 
+// configureConnectionPool sets database connection pool properties.
+// For more information, see https://golang.org/pkg/database/sql
+func configureConnectionPool(db *sql.DB) {
+	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(7)
+	db.SetConnMaxLifetime(1800 * time.Second)
+}
+
+// connectUnixSocket initializes a Unix socket connection pool for
+// a Cloud SQL instance of Postgres.
+func connectUnixSocket() (*sql.DB, error) {
+	// Note: Saving credentials in environment variables is convenient, but not
+	// secure - consider a more secure solution such as
+	// Cloud Secret Manager (https://cloud.google.com/secret-manager) to help
+	// keep secrets safe.
+	var (
+		dbUser         = util.MustGetenv("DB_USER")              // e.g. 'my-db-user'
+		dbPwd          = util.MustGetenv("DB_PASS")              // e.g. 'my-db-password'
+		unixSocketPath = util.MustGetenv("INSTANCE_UNIX_SOCKET") // e.g. '/cloudsql/project:region:instance'
+		dbName         = util.MustGetenv("DB_NAME")              // e.g. 'my-database'
+	)
+
+	dbURI := fmt.Sprintf("user=%s password=%s database=%s host=%s",
+		dbUser, dbPwd, dbName, unixSocketPath)
+
+	// dbPool is the pool of database connections.
+	dbPool, err := sql.Open("pgx", dbURI)
+	if err != nil {
+		return nil, fmt.Errorf("sql.Open: %w", err)
+	}
+
+	configureConnectionPool(dbPool)
+
+	return dbPool, nil
+}
+
 func connectToPostgreSQL() (*gorm.DB, error) {
+	if constants.DEPLOYED {
+		sqlDB, err := connectUnixSocket()
+		if err != nil {
+			log.Fatalf("connectUnixSocket: unable to connect: %s", err)
+		}
+		return gorm.Open(postgres.New(postgres.Config{
+			Conn: sqlDB,
+		}), &gorm.Config{})
+	}
+
 	if constants.LOCAL_POSTGRES {
 		psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 			"localhost", port, util.MustGetenv("LOCAL_POSTGRES_USER"),
@@ -49,14 +101,8 @@ func connectToPostgreSQL() (*gorm.DB, error) {
 	})
 }
 
-func InitPostgreSQLBackend() error {
-	db, err := connectToPostgreSQL()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Connected to PostgreSQL database successfully!")
-
+func addInitRecords(db *gorm.DB) error {
+	var err error = nil
 	if err = db.Migrator().DropTable(&model.User{}); err != nil {
 		return err
 	}
@@ -79,9 +125,21 @@ func InitPostgreSQLBackend() error {
 	var user = model.User{Email: "alice@alice", Username: "Alice", Password: "alice"}
 	db.Create(&user)
 	db.Create(&model.User{Email: "bob@bob.com", Username: "Bob", Password: "bob"})
-
-	dbBackend = &PostgreSQLBackend{db: db}
 	fmt.Println("Initialized PostgreSQL database successfully!")
+	return err
+}
+
+func InitPostgreSQLBackend() error {
+	db, err := connectToPostgreSQL()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Connected to PostgreSQL database successfully!")
+	// if err = addInitRecords(db); err != nil {
+	// 	return err
+	// }
+	dbBackend = &PostgreSQLBackend{db: db}
 	return nil
 }
 

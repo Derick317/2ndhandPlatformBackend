@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"secondHand/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,6 +24,8 @@ func InitRouter() {
 	router.POST("/cancelorder", authMiddleware(), cancelOrderHander)
 	router.POST("/checkout", authMiddleware(), payForOrderHandler)
 	router.GET("/qorder", authMiddleware(), queryOrderHandler)
+
+	mySigningKey = []byte(util.MustGetenv("JWT_KEY"))
 }
 
 func RunRouter(addr ...string) {

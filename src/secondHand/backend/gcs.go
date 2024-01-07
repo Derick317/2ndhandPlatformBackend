@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"secondHand/constants"
 	"secondHand/util"
 
 	"cloud.google.com/go/storage"
@@ -20,8 +21,15 @@ type GoogleCloudStorageBackend struct {
 }
 
 func InitGCSBackend() {
-	client, err := storage.NewClient(context.Background(),
-		option.WithCredentialsFile(util.MustGetenv("GOOGLE_APPLICATION_CREDENTIALS")))
+	var client *storage.Client
+	var err error
+	if constants.DEPLOYED {
+		client, err = storage.NewClient(context.Background())
+	} else {
+		client, err = storage.NewClient(context.Background(),
+			option.WithCredentialsFile(util.MustGetenv("GOOGLE_APPLICATION_CREDENTIALS")))
+	}
+
 	if err != nil {
 		panic(err)
 	}

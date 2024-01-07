@@ -15,7 +15,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var mySigningKey = []byte("secret")
+var mySigningKey []byte
 
 func signinHandler(c *gin.Context) {
 	var user model.User
